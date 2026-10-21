@@ -8,15 +8,68 @@
 #include <mln/util/std.hpp>
 #include <mln/util/tiny_sdf.hpp>
 #include <mln/util/image.hpp>
+#include <mln/util/hash.hpp>
 #include <mln/util/logging.hpp>
 
 #include <fstream>
+#include <functional>
+#include <mutex>
+#include <string_view>
+#include <unordered_map>
 
 namespace mln {
 
 namespace {
 GlyphManagerObserver nullObserver;
-}
+
+// Every Map has its own GlyphManager, and font stacks that end in the same font
+// get the same glyphs from the server. Parsed glyphs never change, so all the
+// GlyphManagers of the process share one copy of each; the last one to drop a
+// glyph frees it.
+class SharedGlyphs {
+public:
+    static SharedGlyphs& get() {
+        // Never destroyed: GlyphManagers may outlive static destruction.
+        static auto* shared = new SharedGlyphs();
+        return *shared;
+    }
+
+    Immutable<Glyph> share(Glyph&& glyph) {
+        const std::size_t hash = hashOf(glyph);
+        std::scoped_lock lock(mutex);
+        auto [first, last] = glyphs.equal_range(hash);
+        for (auto it = first; it != last; ++it) {
+            if (auto known = it->second.lock(); known && isSame(**known, glyph)) {
+                return *known;
+            }
+        }
+        Immutable<Glyph> added = makeMutable<Glyph>(std::move(glyph));
+        glyphs.emplace(hash, added);
+        if (glyphs.size() >= nextSweep) {
+            util::erase_if(glyphs, [](const auto& entry) { return entry.second.expired(); });
+            nextSweep = std::max(minSweep, 2 * glyphs.size());
+        }
+        return added;
+    }
+
+private:
+    static std::size_t hashOf(const Glyph& glyph) {
+        const auto& m = glyph.metrics;
+        const std::string_view bitmap(reinterpret_cast<const char*>(glyph.bitmap.data.get()), glyph.bitmap.bytes());
+        return util::hash(glyph.id.hash, m.width, m.height, m.left, m.top, m.advance, m.isDoubleResolution, bitmap);
+    }
+
+    static bool isSame(const Glyph& a, const Glyph& b) {
+        return a.id.hash == b.id.hash && a.metrics == b.metrics && a.bitmap.size == b.bitmap.size &&
+               a.bitmap == b.bitmap;
+    }
+
+    static constexpr std::size_t minSweep = 4096;
+    std::mutex mutex;
+    std::unordered_multimap<std::size_t, WeakImmutable<Glyph>> glyphs;
+    std::size_t nextSweep = minSweep;
+};
+} // namespace
 
 GlyphManager::GlyphManager(std::unique_ptr<LocalGlyphRasterizer> localGlyphRasterizer_)
     : observer(&nullObserver),
@@ -143,7 +196,7 @@ void GlyphManager::processResponse(const Response& res, const FontStack& fontSta
                 auto id = glyph.id;
                 if (!localGlyphRasterizer->canRasterizeGlyph(fontStack, id)) {
                     entry.glyphs.erase(id);
-                    entry.glyphs.emplace(id, makeMutable<Glyph>(std::move(glyph)));
+                    entry.glyphs.emplace(id, SharedGlyphs::get().share(std::move(glyph)));
                 }
             }
         }

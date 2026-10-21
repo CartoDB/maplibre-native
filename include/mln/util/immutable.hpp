@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 namespace mln {
 
@@ -108,6 +109,8 @@ private:
 
     template <class S>
     friend class Immutable;
+    template <class S>
+    friend class WeakImmutable;
 
     // NOLINTNEXTLINE(readability-redundant-declaration)
     template <class S, class U>
@@ -118,6 +121,29 @@ template <class S, class U>
 Immutable<S> staticImmutableCast(const Immutable<U>& u) noexcept {
     return Immutable<S>(std::static_pointer_cast<const S>(u.ptr));
 }
+
+/**
+ * `WeakImmutable<T>` refers to the value of an `Immutable<T>` without keeping it
+ * alive, for caches that share values but must not extend their lifetime.
+ */
+template <class T>
+class WeakImmutable {
+public:
+    WeakImmutable(const Immutable<T>& immutable) noexcept
+        : ptr(immutable.ptr) {}
+
+    std::optional<Immutable<T>> lock() const noexcept {
+        if (auto shared = ptr.lock()) {
+            return Immutable<T>(std::move(shared));
+        }
+        return std::nullopt;
+    }
+
+    bool expired() const noexcept { return ptr.expired(); }
+
+private:
+    std::weak_ptr<const T> ptr;
+};
 
 /**
  * Constrained mutation of an immutable reference. Makes a temporarily-mutable

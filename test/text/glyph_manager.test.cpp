@@ -269,6 +269,27 @@ TEST(GlyphManager, LoadingCorrupted) {
              GlyphDependencies{.glyphs = {{{{"Test Stack"}}, {u'a', u'å'}}}, .shapes = {}});
 }
 
+TEST(GlyphManager, SharesParsedGlyphsAcrossManagersAndFontStacks) {
+    auto load = [](const FontStack& fontStack) {
+        GlyphManagerTest test;
+        test.fileSource.glyphsResponse = [](const Resource&) {
+            Response response;
+            response.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/glyphs.pbf"));
+            return response;
+        };
+        test.requestor.glyphsAvailable = [&](GlyphMap) {
+            test.end();
+        };
+        test.run("test/fixtures/resources/glyphs.pbf",
+                 GlyphDependencies{.glyphs = {{fontStack, {u'a'}}}, .shapes = {}});
+        return test.glyphManager.getGlyph(fontStack, u'a');
+    };
+
+    const Immutable<Glyph> first = load({"Test Stack"});
+
+    EXPECT_EQ(first, load({"Other Stack"}));
+}
+
 TEST(GlyphManager, LoadingCancel) {
     GlyphManagerTest test;
 
