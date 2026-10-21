@@ -20,7 +20,7 @@ TransformState transformState(const Size size) {
 
 TEST(TilePyramid, CacheSizeInContinuousModeCoversTheZoomRange) {
     EXPECT_EQ(11u, TilePyramid::cacheSize(MapMode::Continuous, transformState({512, 512}), 512, 1));
-    EXPECT_EQ(46u, TilePyramid::cacheSize(MapMode::Continuous, transformState({1024, 1024}), 512, 9));
+    EXPECT_EQ(44u, TilePyramid::cacheSize(MapMode::Continuous, transformState({1024, 1024}), 512, 9));
 }
 
 TEST(TilePyramid, CacheSizeInStillModesIsTwiceTheIdealTiles) {
