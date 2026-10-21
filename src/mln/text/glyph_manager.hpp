@@ -87,12 +87,17 @@ private:
         bool parsed = false;
         std::unique_ptr<AsyncRequest> req;
         std::unordered_map<GlyphRequestor *, std::shared_ptr<GlyphDependencies>> requestors;
+        // The glyphs of a PBF range, shared with the other GlyphManagers that loaded the same ones.
+        std::shared_ptr<const std::map<GlyphID, Immutable<Glyph>>> glyphs;
     };
 
     struct Entry {
         std::map<GlyphRange, GlyphRequest> ranges;
+        // Glyphs drawn here: local ideographs and HarfBuzz font faces.
         std::map<GlyphID, Immutable<Glyph>> glyphs;
     };
+
+    std::optional<Immutable<Glyph>> findGlyph(const FontStack &, const Entry &, GlyphID);
 
     std::unordered_map<FontStack, Entry, FontStackHasher> entries;
 

@@ -11,6 +11,7 @@
 #include <mln/util/hash.hpp>
 #include <mln/util/logging.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <functional>
 #include <mutex>
@@ -52,6 +53,28 @@ public:
         return added;
     }
 
+    // Ranges are compared by their glyphs, which share() has already made unique.
+    std::shared_ptr<const std::map<GlyphID, Immutable<Glyph>>> shareRange(std::map<GlyphID, Immutable<Glyph>>&& range) {
+        std::size_t hash = 0;
+        for (const auto& [id, glyph] : range) {
+            util::hash_combine(hash, glyph.get());
+        }
+        std::scoped_lock lock(mutex);
+        auto [first, last] = ranges.equal_range(hash);
+        for (auto it = first; it != last; ++it) {
+            if (auto known = it->second.lock(); known && isSame(*known, range)) {
+                return known;
+            }
+        }
+        auto added = std::make_shared<const std::map<GlyphID, Immutable<Glyph>>>(std::move(range));
+        ranges.emplace(hash, added);
+        if (ranges.size() >= nextRangeSweep) {
+            util::erase_if(ranges, [](const auto& entry) { return entry.second.expired(); });
+            nextRangeSweep = std::max(minSweep, 2 * ranges.size());
+        }
+        return added;
+    }
+
 private:
     static std::size_t hashOf(const Glyph& glyph) {
         const auto& m = glyph.metrics;
@@ -64,10 +87,18 @@ private:
                a.bitmap == b.bitmap;
     }
 
+    static bool isSame(const std::map<GlyphID, Immutable<Glyph>>& a, const std::map<GlyphID, Immutable<Glyph>>& b) {
+        return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const auto& x, const auto& y) {
+            return x.first.hash == y.first.hash && x.second == y.second;
+        });
+    }
+
     static constexpr std::size_t minSweep = 4096;
     std::mutex mutex;
     std::unordered_multimap<std::size_t, WeakImmutable<Glyph>> glyphs;
     std::size_t nextSweep = minSweep;
+    std::unordered_multimap<std::size_t, std::weak_ptr<const std::map<GlyphID, Immutable<Glyph>>>> ranges;
+    std::size_t nextRangeSweep = minSweep;
 };
 } // namespace
 
@@ -192,11 +223,20 @@ void GlyphManager::processResponse(const Response& res, const FontStack& fontSta
                 return;
             }
 
-            for (auto& glyph : glyphs) {
-                auto id = glyph.id;
-                if (!localGlyphRasterizer->canRasterizeGlyph(fontStack, id)) {
-                    entry.glyphs.erase(id);
-                    entry.glyphs.emplace(id, SharedGlyphs::get().share(std::move(glyph)));
+            if (range.type == GlyphIDType::FontPBF) {
+                std::map<GlyphID, Immutable<Glyph>> rangeGlyphs;
+                for (auto& glyph : glyphs) {
+                    auto id = glyph.id;
+                    rangeGlyphs.insert_or_assign(id, SharedGlyphs::get().share(std::move(glyph)));
+                }
+                request.glyphs = SharedGlyphs::get().shareRange(std::move(rangeGlyphs));
+            } else {
+                for (auto& glyph : glyphs) {
+                    auto id = glyph.id;
+                    if (!localGlyphRasterizer->canRasterizeGlyph(fontStack, id)) {
+                        entry.glyphs.erase(id);
+                        entry.glyphs.emplace(id, makeMutable<Glyph>(std::move(glyph)));
+                    }
                 }
             }
         }
@@ -232,12 +272,7 @@ void GlyphManager::notify(GlyphRequestor& requestor, const GlyphDependencies& gl
         Entry& entry = entries[fontStack];
 
         for (const auto& glyphID : glyphIDs) {
-            auto it = entry.glyphs.find(glyphID);
-            if (it != entry.glyphs.end()) {
-                glyphs.emplace(*it);
-            } else {
-                glyphs.emplace(glyphID, std::nullopt);
-            }
+            glyphs.emplace(glyphID, findGlyph(fontStack, entry, glyphID));
         }
     }
 
@@ -278,7 +313,7 @@ bool GlyphManager::loadHBShaper(const FontStack& fontStack, GlyphIDType type, co
 
 Immutable<Glyph> GlyphManager::getGlyph(const FontStack& fontStack, GlyphID glyphID) {
     auto& entry = entries[fontStack];
-    if (entry.glyphs.find(glyphID) != entry.glyphs.end()) return entry.glyphs.at(glyphID);
+    if (auto glyph = findGlyph(fontStack, entry, glyphID)) return *glyph;
 
     if (glyphID.complex.type != FontPBF) {
         auto shaper = getHBShaper(fontStack, glyphID.complex.type);
@@ -294,6 +329,25 @@ Immutable<Glyph> GlyphManager::getGlyph(const FontStack& fontStack, GlyphID glyp
     Glyph empty;
 
     return makeMutable<Glyph>(std::move(empty));
+}
+
+std::optional<Immutable<Glyph>> GlyphManager::findGlyph(const FontStack& fontStack,
+                                                        const Entry& entry,
+                                                        GlyphID glyphID) {
+    if (auto it = entry.glyphs.find(glyphID); it != entry.glyphs.end()) {
+        return it->second;
+    }
+    if (glyphID.complex.type != GlyphIDType::FontPBF || localGlyphRasterizer->canRasterizeGlyph(fontStack, glyphID)) {
+        return std::nullopt;
+    }
+    auto range = entry.ranges.find(getGlyphRange(glyphID));
+    if (range == entry.ranges.end() || !range->second.glyphs) {
+        return std::nullopt;
+    }
+    if (auto it = range->second.glyphs->find(glyphID); it != range->second.glyphs->end()) {
+        return it->second;
+    }
+    return std::nullopt;
 }
 
 void GlyphManager::hbShaping(const std::u16string& text,
