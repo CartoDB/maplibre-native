@@ -14,6 +14,8 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include <memory>
+
 #define VMA_VULKAN_VERSION 1000000
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
@@ -101,6 +103,12 @@ protected:
 
     void destroyResources();
 
+private:
+    struct SharedDevice;
+    static std::weak_ptr<SharedDevice>& threadSharedDevice();
+    void initWithSharedDevice();
+    void shareDevice();
+
 protected:
     DynamicLoader dynamicLoader;
     DispatchLoaderDynamic dispatcher;
@@ -127,6 +135,14 @@ protected:
 
     bool debugUtilsEnabled{false};
     bool usingSharedContext{false};
+
+    /// Set before `init()` to share one instance, device and allocator with the other backends of
+    /// this thread that set it, instead of creating them. The last of them to be destroyed destroys
+    /// them. Those backends must only be used and destroyed on the thread that created them.
+    bool sharesThreadDevice{false};
+
+private:
+    std::shared_ptr<SharedDevice> sharedDevice;
 };
 
 } // namespace vulkan

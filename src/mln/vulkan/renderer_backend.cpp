@@ -109,6 +109,30 @@ bool checkAvailability(const std::vector<T>& availableValues,
 
 } // namespace
 
+// The objects the backends that share a device use. Only their thread uses them: no locking.
+struct RendererBackend::SharedDevice {
+    DispatchLoaderDynamic dispatcher;
+    vk::Instance instance;
+    vk::PhysicalDevice physicalDevice;
+    vk::PhysicalDeviceFeatures physicalDeviceFeatures;
+    vk::Device device;
+    int32_t graphicsQueueIndex = -1;
+    int32_t presentQueueIndex = -1;
+    VmaAllocator allocator = nullptr;
+
+    // Destroyed by a backend, whose loader keeps the Vulkan library loaded meanwhile.
+    ~SharedDevice() {
+        vmaDestroyAllocator(allocator);
+        device.destroy(nullptr, dispatcher);
+        instance.destroy(nullptr, dispatcher);
+    }
+};
+
+std::weak_ptr<RendererBackend::SharedDevice>& RendererBackend::threadSharedDevice() {
+    thread_local std::weak_ptr<SharedDevice> shared;
+    return shared;
+}
+
 RendererBackend::RendererBackend(const gfx::ContextMode contextMode_)
     : gfx::RendererBackend(contextMode_),
       allocator(nullptr) {}
@@ -378,6 +402,14 @@ void RendererBackend::initDebug() {
 }
 
 void RendererBackend::init() {
+    if (sharesThreadDevice) {
+        sharedDevice = threadSharedDevice().lock();
+        if (sharedDevice) {
+            initWithSharedDevice();
+            return;
+        }
+    }
+
     // initialize minimal set of function pointers
     dispatcher.init(dynamicLoader);
 
@@ -400,6 +432,49 @@ void RendererBackend::init() {
     initAllocator();
     initSwapchain();
     initCommandPool();
+
+    if (sharesThreadDevice) {
+        shareDevice();
+    }
+}
+
+void RendererBackend::initWithSharedDevice() {
+    usingSharedContext = true;
+    dispatcher = sharedDevice->dispatcher;
+
+    initFrameCapture();
+    instance = decltype(instance)(sharedDevice->instance, ObjectDestroy<vk::detail::NoParent>(nullptr, dispatcher));
+    initDebug();
+    initSurface();
+
+    physicalDevice = sharedDevice->physicalDevice;
+    physicalDeviceFeatures = sharedDevice->physicalDeviceFeatures;
+    graphicsQueueIndex = sharedDevice->graphicsQueueIndex;
+    presentQueueIndex = sharedDevice->presentQueueIndex;
+    device = decltype(device)(sharedDevice->device, ObjectDestroy<vk::detail::NoParent>(nullptr, dispatcher));
+
+    physicalDeviceProperties = physicalDevice.getProperties(dispatcher);
+    if (graphicsQueueIndex != -1) graphicsQueue = device->getQueue(graphicsQueueIndex, 0, dispatcher);
+    if (presentQueueIndex != -1) presentQueue = device->getQueue(presentQueueIndex, 0, dispatcher);
+
+    allocator = sharedDevice->allocator;
+    initSwapchain();
+    initCommandPool();
+}
+
+void RendererBackend::shareDevice() {
+    // From here on the shared device owns the instance, the device and the allocator.
+    usingSharedContext = true;
+    sharedDevice = std::make_shared<SharedDevice>();
+    sharedDevice->dispatcher = dispatcher;
+    sharedDevice->instance = instance.get();
+    sharedDevice->physicalDevice = physicalDevice;
+    sharedDevice->physicalDeviceFeatures = physicalDeviceFeatures;
+    sharedDevice->device = device.get();
+    sharedDevice->graphicsQueueIndex = graphicsQueueIndex;
+    sharedDevice->presentQueueIndex = presentQueueIndex;
+    sharedDevice->allocator = allocator;
+    threadSharedDevice() = sharedDevice;
 }
 
 void RendererBackend::initInstance() {
@@ -654,7 +729,9 @@ void RendererBackend::destroyResources() {
     context.reset();
     commandPool.reset();
 
-    vmaDestroyAllocator(allocator);
+    if (!sharedDevice) {
+        vmaDestroyAllocator(allocator);
+    }
     allocator = nullptr;
 
     usingSharedContext ? void(device.release()) : device.reset();
@@ -664,6 +741,8 @@ void RendererBackend::destroyResources() {
     debugReportCallback.reset();
 
     usingSharedContext ? void(instance.release()) : instance.reset();
+
+    sharedDevice.reset();
 }
 
 /// @brief Register a list of types with a shader registry instance
