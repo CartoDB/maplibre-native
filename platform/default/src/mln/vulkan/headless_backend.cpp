@@ -36,6 +36,9 @@ HeadlessBackend::HeadlessBackend(const Size size_,
                                  const gfx::ContextMode contextMode_)
     : mln::vulkan::RendererBackend(contextMode_),
       mln::gfx::HeadlessBackend(size_) {
+    // A headless backend is often one of many on a thread (a tile server keeps a map per style),
+    // and never renders while another one of the thread does: they can use one device.
+    sharesThreadDevice = true;
     init();
 }
 
