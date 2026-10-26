@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -114,6 +115,9 @@ public:
     // Memory
     void setTileCacheEnabled(bool);
     bool getTileCacheEnabled() const;
+    // Tiles kept per source once they are out of view. Without a value, enough to pan and zoom back to.
+    void setTileCacheSize(std::optional<std::size_t>);
+    std::optional<std::size_t> getTileCacheSize() const;
     void reduceMemoryUse();
     void clearData();
 

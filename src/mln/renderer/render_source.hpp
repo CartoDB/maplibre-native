@@ -13,6 +13,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -105,6 +106,8 @@ public:
                                     const std::optional<std::string>&) {}
 
     virtual void setCacheEnabled(bool) {}
+
+    virtual void setCacheSize(std::optional<std::size_t>) {}
 
     virtual void setFastPFOREnabled(bool) {}
 

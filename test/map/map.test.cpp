@@ -2039,3 +2039,12 @@ TEST(Map, SetFrustumOffset) {
 
     test::checkImage("test/fixtures/map/setFrustumOffset/after", test.frontend.render(test.map).image, 0.0006, 0.1);
 }
+
+TEST(Map, TileCacheSize) {
+    MapTest<> test;
+    EXPECT_EQ(std::nullopt, test.frontend.getRenderer()->getTileCacheSize());
+
+    test.frontend.getRenderer()->setTileCacheSize(2);
+
+    EXPECT_EQ(std::optional<std::size_t>(2), test.frontend.getRenderer()->getTileCacheSize());
+}

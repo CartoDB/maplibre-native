@@ -13,6 +13,7 @@
 #include <mln/util/range.hpp>
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 #include <map>
@@ -60,7 +61,11 @@ public:
 
     std::vector<Feature> querySourceFeatures(const SourceQueryOptions&) const;
 
+    // Without a configured size, enough tiles to pan and zoom back to.
+    static std::size_t cacheSize(const TransformState&, uint16_t tileSize, std::optional<std::size_t> configured);
+
     void setCacheEnabled(bool);
+    void setCacheSize(std::optional<std::size_t>);
     void reduceMemoryUse();
 
     void setObserver(TileObserver*);
@@ -85,6 +90,7 @@ private:
 
     bool fadingTiles = false;
     bool cacheEnabled = true;
+    std::optional<std::size_t> configuredCacheSize;
 };
 
 } // namespace mln
