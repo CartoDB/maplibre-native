@@ -306,9 +306,7 @@ std::size_t TilePyramid::cacheSize(const MapMode mode,
     if (mode == MapMode::Continuous) {
         return conservativeCacheSize;
     }
-    // A still image is rendered once, without panning or zooming: only the next renders of
-    // neighbouring images can reuse its tiles. A view with no ideal tiles of this source (out of its
-    // zoom range) still keeps a couple, so it does not empty the cache.
+    // Still images do not pan or zoom. Keep a couple of tiles even out of the zoom range of the source.
     return std::min(conservativeCacheSize, 2 * std::max<std::size_t>(idealTiles, 1));
 }
 
