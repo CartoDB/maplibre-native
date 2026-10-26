@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mln/map/mode.hpp>
 #include <mln/style/layer_properties.hpp>
 #include <mln/style/source_impl.hpp>
 #include <mln/style/types.hpp>
@@ -59,6 +60,10 @@ public:
         const mln::SourceFeatureState& featureState) const;
 
     std::vector<Feature> querySourceFeatures(const SourceQueryOptions&) const;
+
+    /// The number of tiles kept in the cache once they are no longer needed: enough to pan and zoom
+    /// back in a continuous map, and twice the tiles in view for still images.
+    static std::size_t cacheSize(MapMode, const TransformState&, uint16_t tileSize, std::size_t idealTiles);
 
     void setCacheEnabled(bool);
     void reduceMemoryUse();
