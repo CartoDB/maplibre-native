@@ -16,6 +16,7 @@
 #include <mapbox/geometry/envelope.hpp>
 
 #include <cmath>
+#include <cstdlib>
 #include <algorithm>
 
 namespace mln {
@@ -243,6 +244,12 @@ void TilePyramid::update(const std::vector<Immutable<style::LayerProperties>>& l
             std::max(static_cast<double>(parameters.transformState.getSize().width) / tileSize, 1.0) *
             std::max(static_cast<double>(parameters.transformState.getSize().height) / tileSize, 1.0) *
             (parameters.transformState.getMaxZoom() - parameters.transformState.getMinZoom() + 1) * 0.5);
+        // MEASUREMENT ONLY (not for upstream): MLN_X_STILL_TILE_CACHE=<n> keeps n tiles per ideal tile in still modes.
+        static const char* knob = std::getenv("MLN_X_STILL_TILE_CACHE");
+        if (knob && parameters.mode != MapMode::Continuous) {
+            conservativeCacheSize = std::min<size_t>(conservativeCacheSize,
+                                                     static_cast<size_t>(std::atoi(knob)) * idealTiles.size());
+        }
         cache.setSize(conservativeCacheSize);
     } else {
         cache.setSize(0);
