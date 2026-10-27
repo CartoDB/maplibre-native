@@ -35,6 +35,13 @@ public:
                      const std::optional<std::string>& localFontFamily = std::nullopt,
                      bool invalidateOnUpdate_ = true,
                      std::shared_ptr<GlyphCache> glyphCache = nullptr);
+    // The backend is resized to size × pixelRatio.
+    HeadlessFrontend(std::unique_ptr<gfx::HeadlessBackend>,
+                     Size,
+                     float pixelRatio_,
+                     const std::optional<std::string>& localFontFamily = std::nullopt,
+                     bool invalidateOnUpdate_ = true,
+                     std::shared_ptr<GlyphCache> glyphCache = nullptr);
     ~HeadlessFrontend() override;
 
     void reset() override;
