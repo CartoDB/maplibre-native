@@ -12,6 +12,7 @@
 
 namespace mln {
 
+class GlyphCache;
 class RendererObserver;
 class RenderedQueryOptions;
 class SourceQueryOptions;
@@ -42,9 +43,11 @@ struct PlacedSymbolData {
 
 class Renderer {
 public:
+    // Renderers given the same GlyphCache share the glyphs they parse; without one, a renderer keeps its own.
     Renderer(gfx::RendererBackend&,
              float pixelRatio_,
-             const std::optional<std::string>& localFontFamily = std::nullopt);
+             const std::optional<std::string>& localFontFamily = std::nullopt,
+             std::shared_ptr<GlyphCache> glyphCache = nullptr);
     ~Renderer();
 
     void markContextLost();
