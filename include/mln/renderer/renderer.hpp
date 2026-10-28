@@ -42,7 +42,8 @@ struct PlacedSymbolData {
 
 class Renderer {
 public:
-    // Renderers given the same GlyphCache share the glyphs they parse; without one, a renderer keeps its own.
+    // Renderers given the same GlyphCache share the glyphs they load from glyph PBFs; without one, a renderer
+    // keeps its own.
     Renderer(gfx::RendererBackend&,
              float pixelRatio_,
              const std::optional<std::string>& localFontFamily = std::nullopt,

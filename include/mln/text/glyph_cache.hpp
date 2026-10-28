@@ -9,8 +9,10 @@
 
 namespace mln {
 
-// Parsed glyphs shared by the renderers given the same GlyphCache, matched by contents. It holds weak
-// references only: a glyph is freed with its last owner. It can be shared between threads.
+// Keeps one copy of equal glyphs (same id, metrics and bitmap) and of equal glyph ranges: intern() returns
+// the copy that is alive, or keeps the one it is given. It doesn't own them, it only holds weak references:
+// a glyph lives while someone else holds it, and its entry is dropped as the table grows. It can be used
+// from several threads.
 class GlyphCache {
 public:
     GlyphCache();
@@ -25,7 +27,7 @@ public:
     // Ranges are matched by the glyphs they point to: intern the glyphs first.
     std::shared_ptr<const Range> intern(Range&&);
 
-    // Number of glyphs alive.
+    // Number of glyphs alive, not counting ranges. It walks the table: meant for tests.
     std::size_t size() const;
 
 private:
