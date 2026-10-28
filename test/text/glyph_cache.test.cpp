@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace mln;
@@ -49,7 +50,7 @@ TEST(GlyphCache, ReleasesAGlyphWithItsLastOwner) {
     const Immutable<Glyph> kept = cache.intern(glyph(u'a', 1));
     cache.intern(glyph(u'b', 1));
 
-    EXPECT_EQ(1u, cache.size());
+    EXPECT_EQ(1u, std::as_const(cache).size());
 }
 
 TEST(GlyphCache, InternsTheSameRangeParsedOnTwoThreads) {
