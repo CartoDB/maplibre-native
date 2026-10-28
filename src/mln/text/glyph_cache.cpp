@@ -12,7 +12,15 @@ namespace mln {
 
 namespace {
 
+// A table is swept when it reaches twice the entries alive after its last sweep, and at least minSweep, so
+// expired entries never outnumber the live ones by much.
 constexpr std::size_t minSweep = 4096;
+
+template <class Table>
+void sweep(Table& table, std::size_t& nextSweep) {
+    util::erase_if(table, [](const auto& entry) { return entry.second.expired(); });
+    nextSweep = std::max(minSweep, 2 * table.size());
+}
 
 std::size_t hashOf(const Glyph& glyph) {
     const auto& m = glyph.metrics;
@@ -24,14 +32,9 @@ std::size_t hashOf(const Glyph& glyph) {
 
 class GlyphCache::Impl {
 public:
-    void sweep() {
-        util::erase_if(glyphs, [](const auto& entry) { return entry.second.expired(); });
-        nextSweep = std::max(minSweep, 2 * glyphs.size());
-    }
-
     std::mutex mutex;
     std::unordered_multimap<std::size_t, WeakImmutable<Glyph>> glyphs;
-    std::size_t nextSweep = minSweep;
+    std::size_t nextGlyphSweep = minSweep;
     std::unordered_multimap<std::size_t, std::weak_ptr<const Range>> ranges;
     std::size_t nextRangeSweep = minSweep;
 };
@@ -52,8 +55,8 @@ Immutable<Glyph> GlyphCache::intern(Glyph&& glyph) {
     }
     Immutable<Glyph> added = makeMutable<Glyph>(std::move(glyph));
     impl->glyphs.emplace(hash, added);
-    if (impl->glyphs.size() >= impl->nextSweep) {
-        impl->sweep();
+    if (impl->glyphs.size() >= impl->nextGlyphSweep) {
+        sweep(impl->glyphs, impl->nextGlyphSweep);
     }
     return added;
 }
@@ -73,8 +76,7 @@ std::shared_ptr<const GlyphCache::Range> GlyphCache::intern(Range&& range) {
     auto added = std::make_shared<const Range>(std::move(range));
     impl->ranges.emplace(hash, added);
     if (impl->ranges.size() >= impl->nextRangeSweep) {
-        util::erase_if(impl->ranges, [](const auto& entry) { return entry.second.expired(); });
-        impl->nextRangeSweep = std::max(minSweep, 2 * impl->ranges.size());
+        sweep(impl->ranges, impl->nextRangeSweep);
     }
     return added;
 }
