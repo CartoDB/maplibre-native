@@ -45,7 +45,7 @@ void GlyphManager::getGlyphs(GlyphRequestor& requestor, GlyphDependencies glyphD
             std::unordered_set<GlyphRange> ranges;
             for (const auto& glyphID : glyphIDs) {
                 if (localGlyphRasterizer->canRasterizeGlyph(fontStack, glyphID)) {
-                    if (entry.glyphs.find(glyphID) == entry.glyphs.end()) {
+                    if (!entry.glyphs.contains(glyphID)) {
                         entry.glyphs.emplace(glyphID, makeMutable<Glyph>(generateLocalSDF(fontStack, glyphID)));
                     }
                 } else {
@@ -215,9 +215,9 @@ void GlyphManager::evict(const std::set<FontStack>& keep) {
 }
 
 std::shared_ptr<HBShaper> GlyphManager::getHBShaper(FontStack fontStack, GlyphIDType type) {
-    if (hbShapers.find(fontStack) != hbShapers.end()) {
+    if (hbShapers.contains(fontStack)) {
         auto& glyphs = hbShapers[fontStack];
-        if (glyphs.find(type) != glyphs.end()) {
+        if (glyphs.contains(type)) {
             return glyphs[type];
         }
     }
