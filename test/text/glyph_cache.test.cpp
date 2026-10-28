@@ -23,9 +23,12 @@ Glyph glyph(char16_t id, uint8_t value) {
     return glyph;
 }
 
+// The range in test/fixtures/resources/glyphs.pbf.
+const GlyphRange fixtureRange(0, 255, GlyphIDType::FontPBF);
+
 std::vector<Immutable<Glyph>> internRange(GlyphCache& cache, const std::string& data) {
     std::vector<Immutable<Glyph>> interned;
-    for (auto& parsed : parseGlyphPBF(GlyphRange(0, 255, GlyphIDType::FontPBF), data)) {
+    for (auto& parsed : parseGlyphPBF(fixtureRange, data)) {
         interned.push_back(cache.intern(std::move(parsed)));
     }
     return interned;
