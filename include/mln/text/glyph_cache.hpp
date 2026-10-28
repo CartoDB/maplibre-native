@@ -11,9 +11,6 @@ namespace mln {
 
 // Parsed glyphs shared by the renderers given the same GlyphCache, matched by contents. It holds weak
 // references only: a glyph is freed with its last owner. It can be shared between threads.
-//
-// Only glyphs parsed from PBF glyph ranges, and the ranges themselves, go through it. Glyphs drawn by the
-// local rasterizer (`localFontFamily`) and HarfBuzz glyphs are still kept per renderer.
 class GlyphCache {
 public:
     GlyphCache();
