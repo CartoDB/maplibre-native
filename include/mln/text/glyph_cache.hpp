@@ -9,10 +9,8 @@
 
 namespace mln {
 
-// Keeps one copy of equal glyphs (same id, metrics and bitmap) and of equal glyph ranges. intern() returns
-// the copy already in use if there is one, and otherwise stores and returns the one it is given, as in string
-// interning. The cache only holds weak references: a glyph is destroyed with the last Immutable<Glyph> that
-// points to it, and a later intern() removes its entry. It can be used from several threads.
+// Keeps one copy of equal glyphs and glyph ranges. It only holds weak references, so it never keeps a glyph
+// alive. Thread-safe.
 class GlyphCache {
 public:
     GlyphCache();
@@ -27,7 +25,7 @@ public:
     // Ranges are matched by the glyphs they point to: intern the glyphs first.
     std::shared_ptr<const Range> intern(Range&&);
 
-    // Number of glyphs alive, not counting ranges. It walks the table: meant for tests.
+    // Glyphs alive, not counting ranges. Walks the whole table.
     std::size_t size() const;
 
 private:
