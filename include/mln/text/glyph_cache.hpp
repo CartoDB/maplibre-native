@@ -9,10 +9,10 @@
 
 namespace mln {
 
-// Keeps one copy of equal glyphs (same id, metrics and bitmap) and of equal glyph ranges: intern() returns
-// the copy that is alive, or keeps the one it is given. It doesn't own them, it only holds weak references:
-// a glyph lives while someone else holds it, and its entry is dropped as the table grows. It can be used
-// from several threads.
+// Keeps one copy of equal glyphs (same id, metrics and bitmap) and of equal glyph ranges. intern() returns
+// the copy already in use if there is one, and otherwise stores and returns the one it is given, as in string
+// interning. The cache only holds weak references: a glyph is destroyed with the last Immutable<Glyph> that
+// points to it, and a later intern() removes its entry. It can be used from several threads.
 class GlyphCache {
 public:
     GlyphCache();

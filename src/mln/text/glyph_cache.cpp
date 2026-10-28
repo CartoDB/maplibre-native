@@ -12,8 +12,8 @@ namespace mln {
 
 namespace {
 
-// A table is swept when it reaches twice the entries alive after its last sweep, and at least minSweep, so
-// expired entries never outnumber the live ones by much.
+// Expired entries are removed when a table reaches twice the entries alive after its last sweep, and at least
+// minSweep, so a table holds at most minSweep entries or twice its peak of live ones, whichever is larger.
 constexpr std::size_t minSweep = 4096;
 
 template <class Table>

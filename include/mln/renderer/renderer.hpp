@@ -43,7 +43,7 @@ struct PlacedSymbolData {
 class Renderer {
 public:
     // Renderers given the same GlyphCache share the glyphs they load from glyph PBFs; without one, a renderer
-    // keeps its own.
+    // only shares them between its own font stacks. Glyphs drawn locally or with HarfBuzz are not shared.
     Renderer(gfx::RendererBackend&,
              float pixelRatio_,
              const std::optional<std::string>& localFontFamily = std::nullopt,
