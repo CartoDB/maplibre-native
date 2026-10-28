@@ -20,16 +20,6 @@ std::size_t hashOf(const Glyph& glyph) {
     return util::hash(glyph.id.hash, m.width, m.height, m.left, m.top, m.advance, m.isDoubleResolution, bitmap);
 }
 
-bool isSame(const Glyph& a, const Glyph& b) {
-    return a.id.hash == b.id.hash && a.metrics == b.metrics && a.bitmap == b.bitmap;
-}
-
-bool isSame(const GlyphCache::Range& a, const GlyphCache::Range& b) {
-    return std::equal(a.begin(), a.end(), b.begin(), b.end(), [](const auto& x, const auto& y) {
-        return x.first.hash == y.first.hash && x.second == y.second;
-    });
-}
-
 } // namespace
 
 class GlyphCache::Impl {
@@ -56,7 +46,7 @@ Immutable<Glyph> GlyphCache::intern(Glyph&& glyph) {
     std::scoped_lock lock(impl->mutex);
     auto [first, last] = impl->glyphs.equal_range(hash);
     for (auto it = first; it != last; ++it) {
-        if (auto alive = it->second.lock(); alive && isSame(**alive, glyph)) {
+        if (auto alive = it->second.lock(); alive && **alive == glyph) {
             return *alive;
         }
     }
@@ -76,7 +66,7 @@ std::shared_ptr<const GlyphCache::Range> GlyphCache::intern(Range&& range) {
     std::scoped_lock lock(impl->mutex);
     auto [first, last] = impl->ranges.equal_range(hash);
     for (auto it = first; it != last; ++it) {
-        if (auto alive = it->second.lock(); alive && isSame(*alive, range)) {
+        if (auto alive = it->second.lock(); alive && *alive == range) {
             return alive;
         }
     }
